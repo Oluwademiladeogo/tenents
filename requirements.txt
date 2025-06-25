@@ -1,0 +1,12 @@
+flask
+flask-cors
+phonemizer
+pymupdf 
+eng_to_ipa 
+panphon
+phonemizer 
+nltk 
+pdfplumber
+epitran
+pandas
+numpy

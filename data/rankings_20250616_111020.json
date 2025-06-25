@@ -1,0 +1,15 @@
+{
+  "sliders": {
+    "IA": 1,
+    "DI": 2,
+    "CO": 3,
+    "PC": 4,
+    "PS": 5,
+    "F": 6
+  },
+  "ipa": {
+    "word": "think",
+    "ipa": "\u03b8\u02c8\u026a\u014bk",
+    "ipa_error": null
+  }
+}

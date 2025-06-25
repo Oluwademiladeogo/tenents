@@ -1,0 +1,15 @@
+{
+  "sliders": {
+    "IA": 6,
+    "DI": 5,
+    "CO": 4,
+    "PC": 3,
+    "PS": 2,
+    "F": 1
+  },
+  "ipa": {
+    "word": "way",
+    "ipa": "w\u02c8e\u026a",
+    "ipa_error": null
+  }
+}
