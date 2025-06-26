@@ -1,25 +1,51 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import Dict, Any, List, Optional
 import json
 import os
 from datetime import datetime
 import subprocess
+import asyncio
+from pathlib import Path
 
-app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
+app = FastAPI(title="Tenets API", description="API for phonetic analysis and rankings")
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 DATA_DIR = os.getenv("DATA_DIR", "/app/data")
 os.makedirs(DATA_DIR, exist_ok=True)
 
-@app.route('/save-rankings', methods=['POST'])
-def save_rankings():
+# Pydantic models for request/response
+class RankingsRequest(BaseModel):
+    word: str
+    ipa_variants: List[Dict[str, Any]]
+    confusion_matrix: Dict[str, Any]
+
+class RankingsResponse(BaseModel):
+    targetWord: str
+    bestTranscription: str
+    finalTable: Dict[str, Dict[str, float]]
+
+class ErrorResponse(BaseModel):
+    error: str
+
+@app.post('/save-rankings', response_model=RankingsResponse)
+async def save_rankings(request: RankingsRequest):
     try:
-        data = request.get_json(force=True)
+        data = request.dict()
         print("Received data:", data)
 
         if not data:
             print("Error: No data received or JSON format is wrong.")
-            return jsonify({"error": "No data received"}), 400
+            raise HTTPException(status_code=400, detail="No data received")
 
         # Save timestamped version
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -37,7 +63,12 @@ def save_rankings():
         print("Updated: latest_rankings.json")
 
         # Run read.py and capture its output
-        result = subprocess.run(['python', 'read.py'], capture_output=True, text=True)
+        result = await asyncio.to_thread(
+            subprocess.run, 
+            ['python', 'read.py'], 
+            capture_output=True, 
+            text=True
+        )
         
         # Debug: Print raw output
         print("=== Raw read.py output ===")
@@ -139,28 +170,39 @@ def save_rankings():
         
         if not best_transcription:
             print("Error: Could not find best transcription in output")
-            return jsonify({"error": "Could not find best transcription"}), 500
+            raise HTTPException(status_code=500, detail="Could not find best transcription")
             
         if not final_table:
             print("Error: Could not parse final table from output")
             print("Current output_lines:", output_lines)
-            return jsonify({"error": "Could not parse final table"}), 500
+            raise HTTPException(status_code=500, detail="Could not parse final table")
             
         # Get the target word from the request data
         target_word = data.get('word', '')
         
-        response_data = {
-            "targetWord": target_word,
-            "bestTranscription": best_transcription,
-            "finalTable": final_table
-        }
+        response_data = RankingsResponse(
+            targetWord=target_word,
+            bestTranscription=best_transcription,
+            finalTable=final_table
+        )
         
         print(f"Response data: {response_data}")
-        return jsonify(response_data)
+        return response_data
 
+    except HTTPException:
+        raise
     except Exception as e:
         print("Exception occurred:", str(e))
-        return jsonify({"error": str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/")
+async def root():
+    return {"message": "Tenets API is running"}
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=5000)
